@@ -1,5 +1,4 @@
-# Placeholder Streamlit app. Replace with your full app code.
-# ✅ Streamlit App with Live Sensor Feed + Dashboard Summary Tab
+# ✅ Streamlit App with Auto-Training if Model Files are Missing
 
 import streamlit as st
 import tensorflow as tf
@@ -16,60 +15,62 @@ st.set_page_config(page_title="Conveyor Belt Monitor", layout="wide")
 # Sidebar Navigation
 page = st.sidebar.selectbox("📂 Select View", ["📡 Live Monitor", "📊 Dashboard Summary"])
 
-# Common Setup
+# Auto-train model if not found
 if not os.path.exists("rul_predictor.h5") or not os.path.exists("anomaly_detector.h5"):
-    np.random.seed(42)
-    n_samples = 5000
-    time_data = np.arange(n_samples)
-    temp = 60 + np.random.normal(0, 0.5, n_samples).cumsum() / 50
-    vib = 0.2 + np.random.normal(0, 0.02, n_samples).cumsum() / 20
-    spd = 1.0 + np.random.normal(0, 0.05, n_samples)
-    load = 100 + 5 * np.sin(time_data / 200) + np.random.normal(0, 2, n_samples)
-    rul = np.flip(np.linspace(0, 100, n_samples))
-    anomaly = np.zeros(n_samples)
-    anomaly[np.random.choice(n_samples, size=50, replace=False)] = 1
-    vib[anomaly == 1] += np.random.uniform(0.3, 0.7, size=(anomaly == 1).sum())
-    temp[anomaly == 1] += np.random.uniform(5, 10, size=(anomaly == 1).sum())
+    with st.spinner("🔧 Training models (first-time setup)..."):
+        np.random.seed(42)
+        n_samples = 5000
+        time_data = np.arange(n_samples)
+        temp = 60 + np.random.normal(0, 0.5, n_samples).cumsum() / 50
+        vib = 0.2 + np.random.normal(0, 0.02, n_samples).cumsum() / 20
+        spd = 1.0 + np.random.normal(0, 0.05, n_samples)
+        load = 100 + 5 * np.sin(time_data / 200) + np.random.normal(0, 2, n_samples)
+        rul = np.flip(np.linspace(0, 100, n_samples))
+        anomaly = np.zeros(n_samples)
+        anomaly[np.random.choice(n_samples, size=50, replace=False)] = 1
+        vib[anomaly == 1] += np.random.uniform(0.3, 0.7, size=(anomaly == 1).sum())
+        temp[anomaly == 1] += np.random.uniform(5, 10, size=(anomaly == 1).sum())
 
-    df = pd.DataFrame({
-        'temperature': temp,
-        'vibration': vib,
-        'speed': spd,
-        'load': load,
-        'rul': rul,
-        'anomaly': anomaly
-    })
+        df = pd.DataFrame({
+            'temperature': temp,
+            'vibration': vib,
+            'speed': spd,
+            'load': load,
+            'rul': rul,
+            'anomaly': anomaly
+        })
 
-    features = df[['temperature', 'vibration', 'speed', 'load']]
-    target_rul = df['rul']
-    scaler = MinMaxScaler()
-    features_scaled = scaler.fit_transform(features)
+        features = df[['temperature', 'vibration', 'speed', 'load']]
+        target_rul = df['rul']
+        scaler = MinMaxScaler()
+        features_scaled = scaler.fit_transform(features)
 
-    X_train, X_test, y_train, y_test = train_test_split(features_scaled, target_rul, test_size=0.2, random_state=42)
+        X_train, X_test, y_train, y_test = train_test_split(features_scaled, target_rul, test_size=0.2, random_state=42)
 
-    rul_model = models.Sequential([
-        layers.Dense(64, activation='relu', input_shape=(4,)),
-        layers.Dense(64, activation='relu'),
-        layers.Dense(1)
-    ])
-    rul_model.compile(optimizer='adam', loss='mse')
-    rul_model.fit(X_train, y_train, epochs=10, verbose=0)
-    rul_model.save("rul_predictor.h5")
+        rul_model = models.Sequential([
+            layers.Dense(64, activation='relu', input_shape=(4,)),
+            layers.Dense(64, activation='relu'),
+            layers.Dense(1)
+        ])
+        rul_model.compile(optimizer='adam', loss='mse')
+        rul_model.fit(X_train, y_train, epochs=10, verbose=0)
+        rul_model.save("rul_predictor.h5")
 
-    normal_data = features_scaled[df['anomaly'] == 0]
-    input_layer = tf.keras.Input(shape=(4,))
-    encoded = layers.Dense(32, activation='relu')(input_layer)
-    encoded = layers.Dense(16, activation='relu')(encoded)
-    decoded = layers.Dense(32, activation='relu')(encoded)
-    decoded = layers.Dense(4, activation='linear')(decoded)
+        normal_data = features_scaled[df['anomaly'] == 0]
+        input_layer = tf.keras.Input(shape=(4,))
+        encoded = layers.Dense(32, activation='relu')(input_layer)
+        encoded = layers.Dense(16, activation='relu')(encoded)
+        decoded = layers.Dense(32, activation='relu')(encoded)
+        decoded = layers.Dense(4, activation='linear')(decoded)
 
-    autoencoder = models.Model(input_layer, decoded)
-    autoencoder.compile(optimizer='adam', loss='mse')
-    autoencoder.fit(normal_data, normal_data, epochs=10, verbose=0)
-    autoencoder.save("anomaly_detector.h5")
+        autoencoder = models.Model(input_layer, decoded)
+        autoencoder.compile(optimizer='adam', loss='mse')
+        autoencoder.fit(normal_data, normal_data, epochs=10, verbose=0)
+        autoencoder.save("anomaly_detector.h5")
 
-    pd.DataFrame(scaler.data_max_, index=features.columns).to_csv("scaler_max.csv")
-    pd.DataFrame(scaler.data_min_, index=features.columns).to_csv("scaler_min.csv")
+        pd.DataFrame(scaler.data_max_, index=features.columns).to_csv("scaler_max.csv")
+        pd.DataFrame(scaler.data_min_, index=features.columns).to_csv("scaler_min.csv")
+        st.success("✅ Model training complete!")
 
 # Load models and scalers
 rul_model = tf.keras.models.load_model("rul_predictor.h5", compile=False)
@@ -77,17 +78,15 @@ anomaly_model = tf.keras.models.load_model("anomaly_detector.h5", compile=False)
 max_vals = pd.read_csv("scaler_max.csv", index_col=0).values.flatten()
 min_vals = pd.read_csv("scaler_min.csv", index_col=0).values.flatten()
 
-# Shared prediction history
 if "history" not in st.session_state:
     st.session_state.history = pd.DataFrame(columns=["timestamp", "temperature", "vibration", "speed", "load", "rul", "anomaly_score"])
 
-# 📡 Live Monitor Page
+# 📡 Live Monitor
 if page == "📡 Live Monitor":
     st.title("📡 Live Conveyor Belt Health Monitoring")
     col1, col2 = st.columns(2)
     rul_plot = st.empty()
     anom_plot = st.empty()
-
     run_live = st.sidebar.checkbox("▶️ Start Live Sensor Feed")
 
     if run_live:
@@ -131,15 +130,13 @@ if page == "📡 Live Monitor":
     else:
         st.info("🔴 Live mode is OFF. Use the sidebar to start.")
 
-# 📊 Dashboard Page
+# 📊 Dashboard Summary
 elif page == "📊 Dashboard Summary":
     st.title("📊 Summary of Predictions")
-
     if len(st.session_state.history) < 1:
         st.info("📭 No prediction data available. Run the live simulation first.")
     else:
         df = st.session_state.history.copy()
-
         col1, col2, col3 = st.columns(3)
         col1.metric("Average RUL", f"{df['rul'].mean():.2f} hours")
         col2.metric("Max Anomaly Score", f"{df['anomaly_score'].max():.6f}")
