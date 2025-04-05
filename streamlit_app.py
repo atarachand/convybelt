@@ -12,7 +12,16 @@ import os
 st.set_page_config(page_title="Conveyor Belt Monitor", layout="wide")
 page = st.sidebar.selectbox("📂 Select View", ["📡 Live Monitor", "📊 Dashboard Summary"])
 
-# Auto-train if model files are missing
+# 🚨 Check and remove corrupted model files
+for file in ["rul_predictor.h5", "anomaly_detector.h5"]:
+    if os.path.exists(file):
+        try:
+            tf.keras.models.load_model(file, compile=False)
+        except Exception as e:
+            st.warning(f"⚠️ Removing corrupted {file}")
+            os.remove(file)
+
+# 🧠 Auto-train if model files are missing
 if not os.path.exists("rul_predictor.h5") or not os.path.exists("anomaly_detector.h5"):
     with st.spinner("🔧 Training models (first-time setup)..."):
         np.random.seed(42)
@@ -69,7 +78,7 @@ if not os.path.exists("rul_predictor.h5") or not os.path.exists("anomaly_detecto
         pd.DataFrame(scaler.data_min_, index=features.columns).to_csv("scaler_min.csv")
         st.success("✅ Model training complete!")
 
-# Load models
+# ✅ Load trained models
 rul_model = tf.keras.models.load_model("rul_predictor.h5", compile=False)
 anomaly_model = tf.keras.models.load_model("anomaly_detector.h5", compile=False)
 max_vals = pd.read_csv("scaler_max.csv", index_col=0).values.flatten()
