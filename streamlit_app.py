@@ -1,4 +1,3 @@
-# ✅ Streamlit App with Auto-Training if Model Files are Missing
 
 import streamlit as st
 import tensorflow as tf
@@ -11,11 +10,9 @@ from tensorflow.keras import layers, models
 import os
 
 st.set_page_config(page_title="Conveyor Belt Monitor", layout="wide")
-
-# Sidebar Navigation
 page = st.sidebar.selectbox("📂 Select View", ["📡 Live Monitor", "📊 Dashboard Summary"])
 
-# Auto-train model if not found
+# Auto-train if model files are missing
 if not os.path.exists("rul_predictor.h5") or not os.path.exists("anomaly_detector.h5"):
     with st.spinner("🔧 Training models (first-time setup)..."):
         np.random.seed(42)
@@ -72,7 +69,7 @@ if not os.path.exists("rul_predictor.h5") or not os.path.exists("anomaly_detecto
         pd.DataFrame(scaler.data_min_, index=features.columns).to_csv("scaler_min.csv")
         st.success("✅ Model training complete!")
 
-# Load models and scalers
+# Load models
 rul_model = tf.keras.models.load_model("rul_predictor.h5", compile=False)
 anomaly_model = tf.keras.models.load_model("anomaly_detector.h5", compile=False)
 max_vals = pd.read_csv("scaler_max.csv", index_col=0).values.flatten()
@@ -81,7 +78,6 @@ min_vals = pd.read_csv("scaler_min.csv", index_col=0).values.flatten()
 if "history" not in st.session_state:
     st.session_state.history = pd.DataFrame(columns=["timestamp", "temperature", "vibration", "speed", "load", "rul", "anomaly_score"])
 
-# 📡 Live Monitor
 if page == "📡 Live Monitor":
     st.title("📡 Live Conveyor Belt Health Monitoring")
     col1, col2 = st.columns(2)
@@ -130,7 +126,6 @@ if page == "📡 Live Monitor":
     else:
         st.info("🔴 Live mode is OFF. Use the sidebar to start.")
 
-# 📊 Dashboard Summary
 elif page == "📊 Dashboard Summary":
     st.title("📊 Summary of Predictions")
     if len(st.session_state.history) < 1:
